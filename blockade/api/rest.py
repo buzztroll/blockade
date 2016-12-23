@@ -13,7 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging.config
+import traceback
 
+import signal
+
+import sys
+
+import yaml
 from flask import Flask, abort, jsonify, request
 from gevent.wsgi import WSGIServer
 
@@ -22,15 +29,46 @@ from blockade.config import BlockadeConfig
 from blockade.errors import DockerContainerNotFound
 from blockade.errors import InvalidBlockadeName
 
-import json
-import os
 
 app = Flask(__name__)
 
 
-def start(data_dir='/tmp', port=5000, debug=False):
+def stack_trace_handler(signum, frame):
+    code = []
+    code.append(" === Stack trace Begin === ")
+    for threadId, stack in list(sys._current_frames().items()):
+        code.append("##### Thread %s #####" % threadId);
+        for filename, lineno, name, line in traceback.extract_stack(stack):
+            code.append('\tFile: "%s", line %d, in %s' % (filename, lineno, name));
+        if line:
+            code.append(line)
+    code.append(" === Stack trace End === ")
+    app.logger.warn("\n".join(code))
+
+
+def entry_exit_decorator(f):
+    def dec_f():
+        app.logger.debug("Entering %s" % f.__name__)
+        try:
+            return f()
+        finally:
+            app.logger.debug("Exited %s" % f.__name__)
+    return dec_f
+
+
+def start(data_dir='/tmp', port=5000, debug=False, logging_configfile=None):
+    signal.signal(signal.SIGUSR2, stack_trace_handler)
     BlockadeManager.set_data_dir(data_dir)
     app.debug = debug
+    if logging_configfile:
+        try:
+            with open(logging_configfile, 'rt') as f:
+                config = yaml.load(f.read())
+                app.logger
+                logging.config.dictConfig(config)
+        except BaseException as ex:
+            app.logger.warn("Failed to setup logging %s" % ex)
+
     http_server = WSGIServer(('', port), app)
     http_server.serve_forever()
 

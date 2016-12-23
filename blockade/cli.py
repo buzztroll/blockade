@@ -287,7 +287,7 @@ def cmd_daemon(opts):
     """
     if opts.data_dir is None:
         raise BlockadeError("You must supply a data directory for the daemon")
-    rest.start(data_dir=opts.data_dir, port=opts.port, debug=opts.debug)
+    rest.start(data_dir=opts.data_dir, port=opts.port, debug=opts.debug, logging_configfile=opts.log_config)
 
 
 def cmd_add(opts):
@@ -380,6 +380,8 @@ def setup_parser():
         help="Enable debug for the REST API")
     command_parsers["daemon"].add_argument("-p", "--port", action='store',
         type=int, default=5000, help="REST API port. Default is 5000.")
+    command_parsers["daemon"].add_argument("--log-config", "-l", default=None, type=str,
+        help="A path to a logging configuration yaml file")
 
     command_parsers["add"].add_argument("containers", nargs="*", metavar='CONTAINER',
         help="Docker container to add to the Blockade group")
